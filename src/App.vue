@@ -1,17 +1,26 @@
 <template>
   <div id="app">
-    <img alt="Vue logo" src="./assets/logo.png">
-    <HelloWorld msg="Welcome to Your Vue.js App"/>
+    <el-button
+            class="filter-item"
+            size="mini"
+            type="primary"
+            icon="el-icon-plus"
+            @click="add">新增</el-button>
+    <flow-designer ref="FlowDesigner" :is-add="true" />
   </div>
 </template>
 
 <script>
-import HelloWorld from './components/HelloWorld.vue'
-
+import FlowDesigner from './components/FlowDesigner'
 export default {
   name: 'App',
   components: {
-    HelloWorld
+    FlowDesigner
+  },
+  methods: {
+    add() {
+      this.$refs.FlowDesigner.dialog = true
+    }
   }
 }
 </script>
