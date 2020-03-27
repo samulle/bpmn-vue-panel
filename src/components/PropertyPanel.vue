@@ -566,6 +566,7 @@ export default {
       _this.dialog = true
     },
     handleListenerCallback(val) {
+      console.log(val)
       const bpmnFactory = this.modeler.get('bpmnFactory')
       const element = this.rootElement ? this.rootElement : this.element
       const bo = element.businessObject
@@ -577,6 +578,7 @@ export default {
         for (let i = 0; i < this.listenerData.length; i++) {
           data = this.listenerData[i]
           if (data.id === val.id) {
+            this.listenerDel(data)
             break
           }
         }
@@ -587,14 +589,12 @@ export default {
         for (let i = 0; i < this.taskListenerData.length; i++) {
           data = this.taskListenerData[i]
           if (data.id === val.id) {
+            this.listenerDel(data)
             break
           }
         }
         this.taskListenerData.push(val)
         this.taskListener[element.id] = this.taskListenerData
-      }
-      if (data) {
-        this.listenerDel(data)
       }
       let extensionElements = bo.extensionElements
       if (!extensionElements) {
