@@ -14,16 +14,16 @@
           </el-form-item>
           <div v-if="rootElement">
             <el-form-item label="版本号">
-              <el-input v-model="form.versionTag" clearable placeholder="请输入版本号" class="el_input" @input="updateProperties({versionTag: form.version})" />
+              <el-input v-model="form.versionTag" clearable placeholder="请输入版本号" class="el_input" @input="updateProperties({versionTag: form.versionTag || undefined})" />
             </el-form-item>
             <el-form-item label="任务级别">
-              <el-input v-model="form.taskPriority" clearable placeholder="请输入任务优先级" class="el_input" @input="updateProperties({taskPriority: form.taskPriority})" />
+              <el-input v-model="form.taskPriority" clearable placeholder="请输入任务优先级" class="el_input" @input="updateProperties({taskPriority: form.taskPriority || undefined})" />
             </el-form-item>
             <el-form-item label="工作级别">
-              <el-input v-model="form.jobPriority" clearable placeholder="请输入工作优先级" class="el_input" @input="updateProperties({jobPriority: form.jobPriority})" />
+              <el-input v-model="form.jobPriority" clearable placeholder="请输入工作优先级" class="el_input" @input="updateProperties({jobPriority: form.jobPriority || undefined})" />
             </el-form-item>
             <el-form-item label="保留时间">
-              <el-input v-model="form.historyTimeToLive" clearable placeholder="请输入保留时间" class="el_input" @input="updateProperties({historyTimeToLive: form.historyTimeToLive})" />
+              <el-input v-model="form.historyTimeToLive" clearable placeholder="请输入保留时间" class="el_input" @input="updateProperties({historyTimeToLive: form.historyTimeToLive || undefined})" />
             </el-form-item>
             <el-form-item label="描述">
               <el-input v-model="form.description" :rows="3" type="textarea" clearable placeholder="请输入描述" class="el_input" @input="updateDocumentation" />
@@ -79,6 +79,36 @@
             </el-table-column>
           </el-table>
         </div>
+      </el-collapse-item>
+      <el-collapse-item v-if="isUserTask">
+        <template slot="title">
+          <span class="el_title">多实例配置<i class="header-icon el-icon-info" /></span>
+        </template>
+        <el-form ref="multiInstanceForm" :model="selectedMultiInstance" :rules="multiInstanceRules" label-width="100px" size="small">
+          <el-form-item label="类型">
+            <el-select v-model="selectedMultiInstance.isSequential" clearable placeholder="请选择" class="el_input" @change="handleMultiInstance">
+              <el-option
+                      v-for="item in multiInstanceOptions"
+                      :key="item.value"
+                      :label="item.label"
+                      :value="item.value" />
+            </el-select>
+          </el-form-item>
+          <div v-if="selectedMultiInstance.isSequential && selectedMultiInstance.isSequential !== ''">
+            <el-form-item label="循环基数" prop="loopCardinality">
+              <el-input v-model="selectedMultiInstance.loopCardinality" clearable placeholder="请输入循环基数" class="el_input" @input="updateFormalExpression('loopCardinality',selectedMultiInstance.loopCardinality)" />
+            </el-form-item>
+            <el-form-item label="集合">
+              <el-input v-model="selectedMultiInstance.collection" clearable placeholder="请输入集合" class="el_input" @input="updateMultiInstanceProperty('flowable:collection', selectedMultiInstance.collection)" />
+            </el-form-item>
+            <el-form-item label="元素变量">
+              <el-input v-model="selectedMultiInstance.elementVariable" clearable placeholder="请输入元素变量" class="el_input" @input="updateMultiInstanceProperty('flowable:elementVariable', selectedMultiInstance.elementVariable)" />
+            </el-form-item>
+            <el-form-item label="完成条件">
+              <el-input v-model="selectedMultiInstance.completionCondition" clearable placeholder="请输入完成条件" class="el_input" @input="updateFormalExpression('completionCondition',selectedMultiInstance.completionCondition)" />
+            </el-form-item>
+          </div>
+        </el-form>
       </el-collapse-item>
       <el-collapse-item v-if="isExclusiveSequenceFlow">
         <template slot="title">
@@ -227,6 +257,32 @@ export default {
       },
       exclusiveSequence: {
         conditionExpression: ''
+      },
+      multiInstanceOptions: [
+        {
+          value: 'Parallel',
+          label: '并行多重事件'
+        },
+        {
+          value: 'Sequential',
+          label: '顺序多重事件'
+        }
+      ],
+      selectedMultiInstance: {
+        isSequential: '',
+        loopCardinality: '',
+        collection: '',
+        elementVariable: '',
+        completionCondition: '',
+        asyncBefore: false,
+        asyncAfter: false,
+        failedJobRetryTimeCycle: ''
+      },
+      multiInstance: {},
+      multiInstanceRules: {
+        loopCardinality: [
+          { required: true, message: '循环基数不能为空', trigger: 'blur' }
+        ]
       }
     }
   },
@@ -687,6 +743,57 @@ export default {
       const element = this.rootElement ? this.rootElement : this.element
       const bo = element.businessObject
       this.executeCommand(this.removeExtensionElement(element, bo, type, idx))
+    },
+    handleMultiInstance(val) {
+      this.multiInstance[this.element.id] = this.selectedMultiInstance
+      let loopCharacteristics
+      if (val === '') {
+        loopCharacteristics = undefined
+      } else {
+        const moddle = this.modeler.get('moddle')
+        loopCharacteristics = moddle.create('bpmn:MultiInstanceLoopCharacteristics')
+        if (val === 'Sequential') {
+          loopCharacteristics.isSequential = true
+        }
+      }
+      this.updateProperties({
+        loopCharacteristics: loopCharacteristics
+      })
+    },
+    updateFormalExpression(propertyName, newValue) {
+      const bpmnFactory = this.modeler.get('bpmnFactory')
+      const bo = this.element.businessObject
+      const loopCharacteristics = bo.loopCharacteristics
+
+      const expressionProps = {}
+
+      if (!newValue) {
+        // remove formal expression
+        expressionProps[propertyName] = undefined
+        this.executeCommand(cmdHelper.updateBusinessObject(this.element, loopCharacteristics, expressionProps))
+        return
+      }
+
+      const existingExpression = loopCharacteristics.get(propertyName)
+
+      if (!existingExpression) {
+        // add formal expression
+        expressionProps[propertyName] = elementHelper.createElement('bpmn:FormalExpression', { body: newValue }, parent, bpmnFactory)
+        this.executeCommand(cmdHelper.updateBusinessObject(this.element, loopCharacteristics, expressionProps))
+        return
+      }
+
+      // edit existing formal expression
+      this.executeCommand(cmdHelper.updateBusinessObject(this.element, existingExpression, {
+        body: newValue
+      }))
+    },
+    updateMultiInstanceProperty(type, value) {
+      const bo = this.element.businessObject
+      const loopCharacteristics = bo.loopCharacteristics
+      const pros = {}
+      pros[type] = value || undefined
+      this.executeCommand(cmdHelper.updateBusinessObject(this.element, loopCharacteristics, pros))
     }
   }
 }
