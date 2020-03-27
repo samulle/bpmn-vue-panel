@@ -391,6 +391,8 @@ export default {
         if (businessObject.documentation) {
           // this.form.description = businessObject.documentation[0].text
         }
+        this.buttonsData = this.button[element.id] || []
+        this.selectedMultiInstance = this.multiInstance[element.id] || {}
       }
     },
     setListener(element, businessObject) {
